@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image to Video Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+        }
+        input, button {
+            margin: 10px 0;
+            padding: 5px;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+        #responseDetails {
+            white-space: pre-wrap;
+            background-color: #f0f0f0;
+            padding: 10px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Image to Video Generator</h1>
+    <form id="generateForm" enctype="multipart/form-data">
+        <input type="file" id="imageFile" accept=".png,.jpg,.jpeg,.gif" required>
+        <input type="text" id="promptText" placeholder="Enter prompt text" required>
+        <button type="submit">Generate Video</button>
+    </form>
+    <div id="result"></div>
+    <div id="responseDetails"></div>
+
+    <script>
+        document.getElementById('generateForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const imageFile = document.getElementById('imageFile').files[0];
+            const promptText = document.getElementById('promptText').value;
+            const resultDiv = document.getElementById('result');
+            const responseDetailsDiv = document.getElementById('responseDetails');
+
+            if (!imageFile) {
+                resultDiv.innerHTML = '<p class="error">Please select an image file.</p>';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', imageFile);
+            formData.append('promptText', promptText);
+
+            resultDiv.innerHTML = 'Generating video... This may take a few minutes.';
+            responseDetailsDiv.innerHTML = '';
+
+            try {
+                const response = await axios.post('/generate', formData, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data'
+                    }
+                });
+
+                if (response.data.status === 'success') {
+                    resultDiv.innerHTML = `<p class="success">Video generation task completed successfully!</p>`;
+                    
+                    const taskInfo = response.data.task_info;
+                    responseDetailsDiv.innerHTML = `Task Info:\n${JSON.stringify(taskInfo, null, 2)}`;
+                    
+                    // Get the video URL from the output array
+                    let videoUrl = null;
+                    if (Array.isArray(taskInfo.output) && taskInfo.output.length > 0) {
+                        videoUrl = taskInfo.output[0];
+                    }
+                    
+                    if (videoUrl) {
+                        resultDiv.innerHTML += `
+                            <video src="${videoUrl}" controls></video>
+                            <p>If the video doesn't play, you can <a href="${videoUrl}" target="_blank">download it here</a>.</p>
+                        `;
+                    } else {
+                        resultDiv.innerHTML += `<p class="error">Video URL not found in the response. Please check the response details below.</p>`;
+                    }
+                } else {
+                    resultDiv.innerHTML = `<p class="error">Error: ${response.data.message || 'Unknown error occurred'}</p>`;
+                }
+            } catch (error) {
+                if (error.response && error.response.data && error.response.data.message) {
+                    resultDiv.innerHTML = `<p class="error">Error: ${error.response.data.message}</p>`;
+                } else {
+                    resultDiv.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+                }
+            }
+        });
+    </script>
+</body>
+</html>
