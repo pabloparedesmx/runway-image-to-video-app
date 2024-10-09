@@ -1,6 +1,5 @@
 from flask import Flask, render_template, request, jsonify, url_for, send_from_directory
 from runwayml import RunwayML
-from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
 from PIL import Image
 import os
@@ -8,15 +7,29 @@ import time
 import logging
 import uuid
 
-load_dotenv()
-
 app = Flask(__name__)
-client = RunwayML()
 
 # Configuration
-app.config['UPLOAD_FOLDER'] = '/tmp/uploads'  # Use /tmp for Vercel
+app.config['UPLOAD_FOLDER'] = '/tmp'
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB limit
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+
+try:
+    client = RunwayML()
+except Exception as e:
+    logging.error(f"Failed to initialize RunwayML client: {str(e)}")
+    client = None
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/health')
+def health_check():
+    return "OK", 200
 
 # Ensure upload folder exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -61,7 +74,7 @@ def generate_video():
         aspect_ratio = get_aspect_ratio(file_path)
         
         # Use the application's URL for the image
-        image_url = url_for('uploaded_file', filename=unique_filename, _external=True)
+        image_url = request.url_root.rstrip('/') + url_for('uploaded_file', filename=unique_filename)
         
         try:
             task = client.image_to_video.create(
