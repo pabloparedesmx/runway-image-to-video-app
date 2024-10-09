@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, url_for
+from flask import Flask, render_template, request, jsonify, url_for, send_from_directory
 from runwayml import RunwayML
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
@@ -14,7 +14,7 @@ app = Flask(__name__)
 client = RunwayML()
 
 # Configuration
-app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['UPLOAD_FOLDER'] = '/tmp/uploads'  # Use /tmp for Vercel
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB limit
 
@@ -37,6 +37,10 @@ def get_aspect_ratio(image_path):
 def index():
     return render_template('index.html')
 
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
 @app.route('/generate', methods=['POST'])
 def generate_video():
     if 'file' not in request.files:
@@ -56,10 +60,13 @@ def generate_video():
         
         aspect_ratio = get_aspect_ratio(file_path)
         
+        # Use the application's URL for the image
+        image_url = url_for('uploaded_file', filename=unique_filename, _external=True)
+        
         try:
             task = client.image_to_video.create(
                 model='gen3a_turbo',
-                prompt_image=file_path,
+                prompt_image=image_url,
                 prompt_text=prompt_text,
                 ratio=aspect_ratio,
                 duration=5
@@ -102,5 +109,6 @@ def generate_video():
     
     return jsonify({'status': 'error', 'message': 'Invalid file type'})
 
+# This is for local development
 if __name__ == '__main__':
     app.run(debug=True)
